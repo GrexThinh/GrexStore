@@ -1,28 +1,24 @@
-using API.Data;
 using API.Entities;
 using API.Extensions;
+using API.Repositories;
 using API.RequestHelpers;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 
 namespace API.Controllers
 {
     public class ProductsController : BaseApiController
     {
-        private readonly StoreContext _context;
-        public ProductsController(StoreContext context)
+        private readonly IUnitOfWork _unitOfWork;
+
+        public ProductsController(IUnitOfWork unitOfWork)
         {
-            _context = context;
-            
+            _unitOfWork = unitOfWork;
         }
 
         [HttpGet]
         public async Task<ActionResult<PagedList<Product>>> GetProducts([FromQuery]ProductParams productParams)
         {
-            var query = _context.Products.Sort(productParams.OrderBy)
-                .Search(productParams.SearchTerm).Filter(productParams.Brands, productParams.Types).AsQueryable();
-
+            var query = await _unitOfWork.Products.GetProductsQueryAsync(productParams);
             var products = await PagedList<Product>.ToPagedList(query, productParams.PageNumber, productParams.PageSize);
 
             Response.AddPaginationHeader(products.MetaData);
@@ -33,7 +29,7 @@ namespace API.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Product>> GetProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _unitOfWork.Products.GetProductByIdAsync(id);
 
             if (product == null) return NotFound();
 
@@ -43,8 +39,8 @@ namespace API.Controllers
         [HttpGet("filters")]
         public async Task<IActionResult> GetFilters()
         {
-            var brands = await _context.Products.Select(p => p.Brand).Distinct().ToListAsync();
-            var types = await _context.Products.Select(p => p.Type).Distinct().ToListAsync();
+            var brands = await _unitOfWork.Products.GetBrandsAsync();
+            var types = await _unitOfWork.Products.GetTypesAsync();
 
             return Ok(new { brands, types });
         }

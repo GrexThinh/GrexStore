@@ -2,8 +2,9 @@
 using API.DTOs;
 using API.Entities;
 using API.Entities.OrderAggregate;
-using API.Extensions;
+using API.Repositories;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,34 +13,31 @@ namespace API.Controllers
     [Authorize]
     public class OrdersController : BaseApiController
     {
-        private readonly StoreContext _context;
-        public OrdersController(StoreContext context)
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly StoreContext _context; // Still needed for User queries with Address
+
+        public OrdersController(IUnitOfWork unitOfWork, StoreContext context)
         {
+            _unitOfWork = unitOfWork;
             _context = context;
         }
 
         [HttpGet]
         public async Task<ActionResult<List<OrderDto>>> GetOrders()
         {
-            return await _context.Orders
-                .ProjectOrderToOrderDto()
-                .Where(x => x.BuyerId == User.Identity.Name)
-                .ToListAsync();
+            return await _unitOfWork.Orders.GetOrdersByBuyerIdAsync(User.Identity.Name);
         }
 
         [HttpGet("{id}", Name = "GetOrder")]
         public async Task<ActionResult<OrderDto>> GetOrder(int id)
         {
-            return await _context.Orders
-                .ProjectOrderToOrderDto()
-                .Where(x => x.BuyerId == User.Identity.Name && x.Id == id)
-                .FirstOrDefaultAsync();
+            return await _unitOfWork.Orders.GetOrderByIdAndBuyerIdAsync(id, User.Identity.Name);
         }
 
         [HttpPost]
         public async Task<ActionResult<Order>> CreateOrder(CreateOrderDto orderDto)
         {
-            var basket = await _context.Baskets.RetrieveBasketWithItems(User.Identity.Name).FirstOrDefaultAsync();
+            var basket = await _unitOfWork.Baskets.GetBasketWithItemsByBuyerIdAsync(User.Identity.Name);
 
             if (basket == null) return BadRequest(new ProblemDetails { Title = "Could not locate basket"});
 
@@ -47,7 +45,7 @@ namespace API.Controllers
 
             foreach (var item in basket.Items)
             {
-                var productItem = await _context.Products.FindAsync(item.ProductId);
+                var productItem = await _unitOfWork.Products.GetProductByIdAsync(item.ProductId);
                 var itemOrdered = new ProductItemOrdered
                 {
                     ProductId = productItem.Id,
@@ -77,8 +75,8 @@ namespace API.Controllers
                 PaymentIntentId = basket.PaymentIntentId!
             };
 
-            _context.Orders.Add(order);
-            _context.Baskets.Remove(basket);
+            await _unitOfWork.Orders.CreateOrderAsync(order);
+            _unitOfWork.Baskets.RemoveBasket(basket);
 
             if (orderDto.SaveAddress)
             {
@@ -98,7 +96,7 @@ namespace API.Controllers
                 user.Address = address;
             }
 
-            var result = await _context.SaveChangesAsync() > 0;
+            var result = await _unitOfWork.SaveChangesAsync(true);
 
             if (result)
             {

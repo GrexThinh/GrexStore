@@ -1,18 +1,18 @@
-using API.Data;
 using API.DTOs;
 using API.Entities;
 using API.Extensions;
+using API.Repositories;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers
 {
     public class BasketController : BaseApiController
     {
-        private readonly StoreContext _context;
-        public BasketController(StoreContext context)
+        private readonly IUnitOfWork _unitOfWork;
+
+        public BasketController(IUnitOfWork unitOfWork)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
         }
 
         [HttpGet(Name = "GetBasket")]
@@ -31,13 +31,13 @@ namespace API.Controllers
             var basket = await RetrieveBasket(GetBuyerId());
             if (basket == null) basket = CreateBasket();
 
-            var product = await _context.Products.FindAsync(productId);
+            var product = await _unitOfWork.Products.GetProductByIdAsync(productId);
 
             if (product == null) return BadRequest(new ProblemDetails{Title = "Product Not Found"});
 
             basket.AddItem(product, quantity);
 
-            var result = await _context.SaveChangesAsync() > 0;
+            var result = await _unitOfWork.SaveChangesAsync(true);
 
             if (result) return CreatedAtRoute("GetBasket", basket.MapBasketToDto());
 
@@ -53,23 +53,20 @@ namespace API.Controllers
 
             basket.RemoveItem(productId, quantity);
 
-            var result = await _context.SaveChangesAsync() > 0;
+            var result = await _unitOfWork.SaveChangesAsync(true);
 
             if (result) return Ok();
 
             return BadRequest(new ProblemDetails { Title = "Problem removing item from the basket" });
         }
 
-        private async Task<Basket> RetrieveBasket(string buyerId)
+        private async Task<Basket?> RetrieveBasket(string buyerId)
         {
             if (string.IsNullOrEmpty(buyerId)) {
                 Response.Cookies.Delete("buyerId");
                 return null;
             }
-            return await _context.Baskets
-                .Include(i => i.Items)
-                .ThenInclude(p => p.Product)
-                .FirstOrDefaultAsync(basket => basket.BuyerId == buyerId);
+            return await _unitOfWork.Baskets.GetBasketByBuyerIdAsync(buyerId);
         }
 
         private string GetBuyerId() {
@@ -86,7 +83,7 @@ namespace API.Controllers
             }
            
             var basket = new Basket { BuyerId = buyerId };
-            _context.Baskets.Add(basket);
+            _ = _unitOfWork.Baskets.CreateBasketAsync(basket);
             return basket;
         }
     }

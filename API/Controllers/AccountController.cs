@@ -1,7 +1,7 @@
-﻿using API.Data;
-using API.DTOs;
+﻿using API.DTOs;
 using API.Entities;
 using API.Extensions;
+using API.Repositories;
 using API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -14,11 +14,11 @@ namespace API.Controllers
     {
         private readonly UserManager<User> _userManager;
         private readonly TokenService _tokenService;
-        private readonly StoreContext _context;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public AccountController(UserManager<User> userManager, TokenService tokenService, StoreContext context) 
+        public AccountController(UserManager<User> userManager, TokenService tokenService, IUnitOfWork unitOfWork) 
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
             _tokenService = tokenService;
         }
@@ -38,10 +38,10 @@ namespace API.Controllers
 
             if (anonBasket != null)
             {
-                if (userBasket != null) _context.Baskets.Remove(userBasket);
+                if (userBasket != null) _unitOfWork.Baskets.RemoveBasket(userBasket);
                 anonBasket.BuyerId = user.UserName;
                 Response.Cookies.Delete("buyerId");
-                await _context.SaveChangesAsync();
+                await _unitOfWork.SaveChangesAsync();
             }
 
             return new UserDto
@@ -100,17 +100,14 @@ namespace API.Controllers
                 .FirstOrDefaultAsync();
         }
 
-        private async Task<Basket> RetrieveBasket(string buyerId)
+        private async Task<Basket?> RetrieveBasket(string buyerId)
         {
             if (string.IsNullOrEmpty(buyerId))
             {
                 Response.Cookies.Delete("buyerId");
                 return null;
             }
-            return await _context.Baskets
-                .Include(i => i.Items)
-                .ThenInclude(p => p.Product)
-                .FirstOrDefaultAsync(basket => basket.BuyerId == buyerId);
+            return await _unitOfWork.Baskets.GetBasketByBuyerIdAsync(buyerId);
         }
     }
 }

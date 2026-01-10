@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# unit test files
+coverage-report/
+
 # User-specific files
 *.rsuser
 *.suo

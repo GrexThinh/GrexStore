@@ -1,11 +1,10 @@
-﻿using API.Data;
-using API.DTOs;
+﻿using API.DTOs;
 using API.Entities.OrderAggregate;
 using API.Extensions;
+using API.Repositories;
 using API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Stripe;
 
 namespace API.Controllers
@@ -13,13 +12,13 @@ namespace API.Controllers
     public class PaymentsController: BaseApiController
     {
         private readonly PaymentService _paymentService;
-        private readonly StoreContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IConfiguration _config;
 
-        public PaymentsController(PaymentService paymentService, StoreContext context, IConfiguration config)
+        public PaymentsController(PaymentService paymentService, IUnitOfWork unitOfWork, IConfiguration config)
         {
             _paymentService = paymentService;
-            _context = context;
+            _unitOfWork = unitOfWork;
             _config = config;
         }
 
@@ -27,7 +26,7 @@ namespace API.Controllers
         [HttpPost]
         public async Task<ActionResult<BasketDto>> CreateOrUpdatePaymentIntent()
         {
-            var basket = _context.Baskets.RetrieveBasketWithItems(User.Identity.Name).FirstOrDefault();
+            var basket = await _unitOfWork.Baskets.GetBasketWithItemsByBuyerIdAsync(User.Identity.Name);
 
             if (basket == null) return NotFound();
 
@@ -38,9 +37,9 @@ namespace API.Controllers
             basket.PaymentIntentId = basket.PaymentIntentId ?? intent.Id;
             basket.ClientSecret = basket.ClientSecret ?? intent.ClientSecret;
 
-            _context.Update(basket);
+            _unitOfWork.Baskets.UpdateBasket(basket);
 
-            var result = await _context.SaveChangesAsync() > 0;
+            var result = await _unitOfWork.SaveChangesAsync(true);
 
             if (!result) return BadRequest(new ProblemDetails { Title = "Problem updating basket with intent" });
 
@@ -56,11 +55,12 @@ namespace API.Controllers
 
             var charge = (Charge)stripeEvent.Data.Object;
 
-            var order = await _context.Orders.FirstOrDefaultAsync(x => x.PaymentIntentId == charge.PaymentIntentId);
+            var order = await _unitOfWork.Orders.GetOrderByPaymentIntentIdAsync(charge.PaymentIntentId);
 
             if (charge.Status == "succeeded") order.OrderStatus = OrderStatus.PaymentReceived;
 
-            await _context.SaveChangesAsync();
+            _unitOfWork.Orders.UpdateOrder(order);
+            await _unitOfWork.SaveChangesAsync();
 
             return new EmptyResult();
         }
