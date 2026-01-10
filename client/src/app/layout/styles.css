@@ -1,0 +1,7 @@
+.slick-arrow.slick-prev {
+  left: 0;
+  z-index: 1;
+}
+.slick-arrow.slick-next {
+  right: 0;
+}

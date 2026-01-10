@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using API.Entities;
 using Microsoft.AspNetCore.Identity;
 
@@ -15,19 +11,19 @@ namespace API.Data
                 var user = new User
                 {
                     UserName = "grex",
-                    Email = "grex@test.com"
+                    Email = "grexfithcmus@gmail.com"
                 };
 
-                await userManager.CreateAsync(user, "TGrex#90");
+                await userManager.CreateAsync(user, "Grex@123");
                 await userManager.AddToRoleAsync(user, "Member");
 
                 var admin = new User
                 {
                     UserName = "admin",
-                    Email = "admin@test.com"
+                    Email = "vanthinhq@gmail.com"
                 };
 
-                await userManager.CreateAsync(admin, "TGrex#90");
+                await userManager.CreateAsync(admin, "Grex@123");
                 await userManager.AddToRolesAsync(user, new[] { "Member", "Admin" });
             }
 

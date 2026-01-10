@@ -12,7 +12,7 @@ import {
 import { Box } from "@mui/system";
 import { Link, NavLink } from "react-router-dom";
 import { useAppSelector } from "../store/configureStore";
-import SignedInMenu from "./signedInMenu";
+import SignedInMenu from "./SignedInMenu";
 
 const midLinks = [
   { title: "catalog", path: "/catalog" },
@@ -48,7 +48,7 @@ export default function Header({ handleThemeChange, darkMode }: Props) {
   const itemCount = basket?.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <AppBar position="static" sx={{ mb: 4 }}>
+    <AppBar position="static">
       <Toolbar
         sx={{
           display: "flex",
